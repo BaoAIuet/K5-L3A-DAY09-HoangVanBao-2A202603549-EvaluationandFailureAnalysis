@@ -74,3 +74,18 @@ def test_slice_check_blocks_a_slice_below_floor():
     spec = dict(SPEC, slices=[{"name": "denial", "metric": "pass_rate", "min": 0.9, "blocking": True}])
     blocked, _ = gate.slice_check(_report(rows, {"pass_rate": 0.75}), base, spec)
     assert blocked == ["slice:denial/pass_rate"]
+
+
+def test_trap_detector_respects_max_threshold_on_capability_metrics():
+    from lab9.traps import _bad
+
+    spec = {"metrics": [{"id": "fm_08", "kind": "capability", "threshold": {"max": 0}, "blocking": True}]}
+    assert _bad({"fm_08": False}, spec) is False
+    assert _bad({"fm_08": True}, spec) is True
+
+
+def test_trap_recompute_handles_all_rows_dropped():
+    from lab9.traps import _recompute
+
+    report = _report([], {"pass_rate": 1.0})
+    assert _recompute(report, SPEC)["rows"] == []

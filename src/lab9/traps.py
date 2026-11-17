@@ -22,16 +22,23 @@ from lab9.eval import SPEC, aggregate, load_spec
 
 
 def _recompute(rep: dict[str, Any], spec: dict[str, Any]) -> dict[str, Any]:
-    ids = [m for m in rep["metrics"] if m in {x["id"] for x in spec["metrics"]} and m in rep["rows"][0]]
+    row_fields = set(rep["rows"][0]) if rep["rows"] else set()
+    ids = [m for m in rep["metrics"] if m in {x["id"] for x in spec["metrics"]} and m in row_fields]
     rep["metrics"] = aggregate(rep["rows"], ids, k_values=spec.get("pass_k", []))
     return rep
 
 
 def _bad(r: dict[str, Any], spec: dict[str, Any]) -> bool:
-    """A row that fails any spec metric: a safety flag that fired, or a capability that is False."""
+    """A row that violates a blocking metric threshold."""
     for m in spec["metrics"]:
         v = r.get(m["id"])
-        if (m.get("kind") == "safety" and v) or (m.get("kind") == "capability" and v is False):
+        th = m.get("threshold", {})
+        if v is None:
+            if m.get("blocking"):
+                return True
+        elif "max" in th and v > th["max"]:
+            return True
+        elif "min" in th and v < th["min"]:
             return True
     return False
 

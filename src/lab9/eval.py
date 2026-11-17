@@ -24,11 +24,7 @@ from typing import Any
 import yaml
 from pydantic_evals import Case, Dataset
 
-from lab8.benchmark import prepare_from_memory, run_trial
-from lab8.console import utf8_stdio
-from lab8.db import connect, load_json, load_jsonl
-from lab8.metrics import artifact_blob, ledger_snapshot, trial_pass, unexpected_ledger_rows
-from lab9 import evalset, stats, variants
+from lab9 import evalset, stats
 from lab9.graders import GRADERS
 
 SPEC = Path("config/metric_spec.yaml")
@@ -40,6 +36,10 @@ def load_spec(path: Path = SPEC) -> dict[str, Any]:
 
 
 def make_task(shape: str, world: dict[str, Any], claims: list[dict[str, Any]], labels: dict[str, Any], tmp: Path):
+    from lab8.benchmark import prepare_from_memory, run_trial
+    from lab8.db import connect
+    from lab8.metrics import artifact_blob, ledger_snapshot, trial_pass, unexpected_ledger_rows
+
     def run_one(inputs: dict[str, Any]) -> dict[str, Any]:
         claim_id, seed = inputs["claim_id"], inputs["seed"]
         store = tmp / f"{shape}-{claim_id}-{seed}.sqlite"
@@ -68,6 +68,8 @@ def make_task(shape: str, world: dict[str, Any], claims: list[dict[str, Any]], l
 def load_world(spec: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Lab 8 world + public claims, plus the adversarial pack when the spec names one (v2).
     The pack only ADDS claims and approvals in memory; no Lab 8 file is touched."""
+    from lab8.db import load_json, load_jsonl
+
     world = load_json(WORLD)
     claims = load_jsonl(Path("data/public_claims.jsonl"))
     if spec.get("adversarial_pack"):
@@ -132,11 +134,8 @@ def aggregate(rows: list[dict[str, Any]], metric_ids: list[str], k_values: list[
             if not by_item or min(len(v) for v in by_item.values()) < k:
                 out[f"{name}_{k}"] = None            # undefined with fewer than k runs per item
                 continue
-            try:
-                est = [fn(len(v), sum(v), k) for v in by_item.values()]
-                out[f"{name}_{k}"] = round(sum(est) / len(est), 4) if est else None
-            except NotImplementedError:
-                out[f"{name}_{k}"] = None
+            est = [fn(len(v), sum(v), k) for v in by_item.values()]
+            out[f"{name}_{k}"] = round(sum(est) / len(est), 4) if est else None
     passes = sum(bool(r.get("pass_rate")) for r in rows)
     out["cost_per_success"] = round(sum(r["cost"] for r in rows) / passes, 4) if passes else None
     return out
@@ -155,6 +154,9 @@ def per_item(report: dict[str, Any], metric: str, slice_name: str | None = None)
 
 
 def main(argv: list[str] | None = None) -> int:
+    from lab8.console import utf8_stdio
+    from lab9 import variants
+
     utf8_stdio()
     ap = argparse.ArgumentParser(prog="lab9.eval")
     ap.add_argument("--shape", required=True)
